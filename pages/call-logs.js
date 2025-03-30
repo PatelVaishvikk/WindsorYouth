@@ -60,7 +60,9 @@ export default function CallLogs() {
   const fetchCallLogs = async (page = 1, limit = perPage) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/call-logs?page=${page}&limit=${limit}&search=${searchTerm}`);
+      // const response = await fetch(`/api/call-logs?page=${page}&limit=${page}&search=${searchTerm}`);
+      // let response = await fetch(`/api/call-logs?page=${page}&limit=${page}&search=${searchTerm}`);
+      let response = await fetch("/api/call-logs?page=" + page + "&limit=" + page + "&search=" + searchTerm);
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch call logs');
