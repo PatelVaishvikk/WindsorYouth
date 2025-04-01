@@ -45,9 +45,15 @@ export default function CallLogs() {
 
   useEffect(() => {
     setMounted(true);
-    fetchCallLogs();
-    fetchStudents();
   }, []);
+
+  // Only fetch data once the component is mounted
+  useEffect(() => {
+    if (mounted) {
+      fetchCallLogs(currentPage, perPage);
+      fetchStudents();
+    }
+  }, [mounted, currentPage, perPage, searchTerm]);
 
   const showToastMessage = (message, variant = 'success') => {
     setToastMessage(message);
@@ -57,35 +63,35 @@ export default function CallLogs() {
   };
 
   // Fetch call logs data
-// Fetch call logs data
-const fetchCallLogs = async (page = 1, limit = perPage) => { // Use page and limit arguments
-  try {
-    setLoading(true);
-    // --- CORRECTED LINE ---
-    const response = await fetch(`/api/call-logs?page=${page}&limit=${limit}&search=${searchTerm}`);
-    // --- END CORRECTED LINE ---
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to fetch call logs');
+  const fetchCallLogs = async (page = 1, limit = perPage) => {
+    try {
+      setLoading(true);
+      // Use window.location.origin to get the base URL in production
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/call-logs?page=${page}&limit=${limit}&search=${searchTerm}`);
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch call logs');
+      }
+      setCallLogs(data.callLogs);
+      setTotalRows(data.total);
+      setCurrentPage(data.currentPage);
+    } catch (error) {
+      console.error('Error fetching call logs:', error);
+      showToastMessage(error.message, 'danger');
+      setCallLogs([]);
+      setTotalRows(0);
+    } finally {
+      setLoading(false);
     }
-    setCallLogs(data.callLogs);
-    setTotalRows(data.total);
-    setCurrentPage(data.currentPage);
-  } catch (error) {
-    console.error('Error fetching call logs:', error);
-    showToastMessage(error.message, 'danger');
-    setCallLogs([]);
-    setTotalRows(0);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // Fetch students for the dropdown
   const fetchStudents = async () => {
     try {
-      const response = await fetch('/api/students?limit=100');
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/students?limit=100`);
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch students');
@@ -100,18 +106,15 @@ const fetchCallLogs = async (page = 1, limit = perPage) => { // Use page and lim
   const handleSearch = debounce((term) => {
     setSearchTerm(term);
     setCurrentPage(1);
-    fetchCallLogs(1, perPage);
   }, 500);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    fetchCallLogs(page, perPage);
   };
 
   const handlePerRowsChange = (newPerPage) => {
     setPerPage(newPerPage);
     setCurrentPage(1);
-    fetchCallLogs(1, newPerPage);
   };
 
   // Handle add call log: set call log defaults and show the modal
@@ -129,7 +132,8 @@ const fetchCallLogs = async (page = 1, limit = perPage) => { // Use page and lim
   // Save call log to the API
   const saveCallLog = async () => {
     try {
-      const response = await fetch('/api/call-logs', {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/call-logs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -153,7 +157,8 @@ const fetchCallLogs = async (page = 1, limit = perPage) => { // Use page and lim
   const handleDelete = async (logId) => {
     if (!confirm('Are you sure you want to delete this call log?')) return;
     try {
-      const response = await fetch(`/api/call-logs?id=${logId}`, {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/call-logs?id=${logId}`, {
         method: 'DELETE'
       });
       const data = await response.json();
