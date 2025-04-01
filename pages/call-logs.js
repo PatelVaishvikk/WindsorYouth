@@ -97,6 +97,7 @@ export default function CallLogs() {
         throw new Error(data.error || 'Failed to fetch students');
       }
       setStudents(data.students);
+      console.log('Fetched students:', data.students);
     } catch (error) {
       console.error('Error fetching students:', error);
       showToastMessage(error.message, 'danger');
@@ -177,22 +178,22 @@ export default function CallLogs() {
     {
       name: 'Student',
       selector: (row) =>
-        row.student ? `${row.student.first_name} ${row.student.last_name}` : 'Unknown Student',
+        row.student_id ? `${row.student_id.first_name} ${row.student_id.last_name}` : 'Unknown Student',
       sortable: true,
       cell: (row) => (
         <div className="d-flex align-items-center">
           <div className="avatar-circle me-2">
-            {row.student ? row.student.first_name.charAt(0) : '?'}
+            {row.student_id ? row.student_id.first_name.charAt(0) : '?'}
           </div>
           <div>
             <div className="fw-bold">
-              {row.student ? `${row.student.first_name} ${row.student.last_name}` : 'Unknown Student'}
+              {row.student_id ? `${row.student.first_name} ${row.student_id.last_name}` : 'Unknown Student'}
             </div>
             <div className="text-muted small">
-              {row.student ? row.student.mail_id : 'No email'}
+              {row.student_id ? row.student_id.mail_id : 'No email'}
             </div>
           </div>
-        </div>
+        </div>  
       )
     },
     {
@@ -219,11 +220,11 @@ export default function CallLogs() {
     },
     {
       name: 'Date',
-      selector: (row) => row.date,
+      selector: (row) => row.created_at,
       sortable: true,
       cell: (row) => {
         try {
-          return new Date(row.date).toLocaleString();
+          return new Date(row.created_at).toLocaleString();
         } catch (error) {
           return 'Invalid Date';
         }
