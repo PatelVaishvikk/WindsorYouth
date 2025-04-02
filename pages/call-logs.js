@@ -75,6 +75,7 @@ export default function CallLogs() {
         throw new Error(data.error || 'Failed to fetch call logs');
       }
       setCallLogs(data.callLogs);
+      console.log(data.callLogs);
       setTotalRows(data.total);
       setCurrentPage(data.currentPage);
     } catch (error) {
@@ -178,19 +179,25 @@ export default function CallLogs() {
     {
       name: 'Student',
       selector: (row) =>
-        row.student ? `${row.student.first_name} ${row.student.last_name}` : 'Unknown Student',
+        row.student ? `${row.student.first_name} ${row.student.last_name}` :
+      row.student_id ? `${row.student_id.first_name} ${row.student_id.last_name}` : 
+      'Unknown Student',
       sortable: true,
       cell: (row) => (
         <div className="d-flex align-items-center">
           <div className="avatar-circle me-2">
-            {row.student ? row.student.first_name.charAt(0) : '?'}
+          {row.student ? row.student.first_name.charAt(0) :
+           row.student_id ? row.student_id.first_name.charAt(0) : '?'}
           </div>
           <div>
             <div className="fw-bold">
-              {row.student ? `${row.student.first_name} ${row.student.last_name}` : 'Unknown Student'}
+            {row.student ? `${row.student.first_name} ${row.student.last_name}` :
+             row.student_id ? `${row.student_id.first_name} ${row.student_id.last_name}` : 
+             'Unknown Student'}
             </div>
             <div className="text-muted small">
-              {row.student ? row.student.mail_id : 'No email'}
+            {row.student ? row.student.mail_id :
+             row.student_id ? row.student_id.mail_id : 'No email'}
             </div>
           </div>
         </div>
