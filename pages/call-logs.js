@@ -75,6 +75,7 @@ export default function CallLogs() {
         throw new Error(data.error || 'Failed to fetch call logs');
       }
       setCallLogs(data.callLogs);
+      console.log(data.callLogs);
       setTotalRows(data.total);
       setCurrentPage(data.currentPage);
     } catch (error) {
