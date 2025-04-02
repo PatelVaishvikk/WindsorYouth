@@ -48,7 +48,9 @@ export default function Dashboard() {
         const data = await response.json();
         // Transform the data to ensure we're using the correct properties
         const formattedCalls = data.callLogs.map(call => ({
-          student: call.student ? `${call.student.first_name} ${call.student.last_name}` : 'Unknown Student',
+          student: call.student ? `${call.student.first_name} ${call.student.last_name}` :
+          call.student_id ? `${call.student_id.first_name} ${call.student_id.last_name}` : 
+          'Unknown Student',
           status: call.status || 'Pending',
           notes: call.notes || 'No notes',
           date: new Date(call.date).toLocaleString() || new Date().toLocaleString()
