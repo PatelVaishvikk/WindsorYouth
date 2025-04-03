@@ -11,13 +11,12 @@ const Navigation = () => {
             <Container>
                 <Link href="/" legacyBehavior>
                     <Navbar.Brand as="a" className="fw-bold">
-                                   <Image 
-              src="/windsor.jpg" 
-              alt="HSAPSS Windsor Logo" 
-              width={30} 
-              height={30} 
-              className="me-2" 
-            />
+                                                   <img
+          src="/windsor.jpg"
+          alt="HSAPSS Windsor Logo"
+          className="me-2"
+          style={{ height: '30px' }}
+        />
                         HSAPSS Windsor
                     </Navbar.Brand>
                 </Link>
