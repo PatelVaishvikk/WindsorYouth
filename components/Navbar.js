@@ -11,7 +11,13 @@ const Navigation = () => {
             <Container>
                 <Link href="/" legacyBehavior>
                     <Navbar.Brand as="a" className="fw-bold">
-                        <i className="fas fa-graduation-cap me-2"></i>
+                                   <Image 
+              src="/windsor.jpg" 
+              alt="HSAPSS Windsor Logo" 
+              width={30} 
+              height={30} 
+              className="me-2" 
+            />
                         HSAPSS Windsor
                     </Navbar.Brand>
                 </Link>
