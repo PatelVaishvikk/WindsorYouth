@@ -33,3 +33,7 @@ AttendanceSchema.pre('save', function(next) {
 });
 
 export default mongoose.models.Attendance || mongoose.model('Attendance', AttendanceSchema);
+
+// models/Attendance.js
+
+
