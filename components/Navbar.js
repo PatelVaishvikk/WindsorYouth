@@ -78,7 +78,7 @@ const Navigation = () => {
           background-color: #f8f9fc;
         }
       `}</style>
-      <DarkModeToggle />
+     
     </Navbar>
   );
 };
