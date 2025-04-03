@@ -1,4 +1,3 @@
-// pages/attendance.js
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
@@ -24,12 +23,23 @@ import {
   CategoryScale,
   LinearScale,
   PointElement,
-  LineElement
+  LineElement,
+  BarElement
 } from 'chart.js';
-import io from 'socket.io-client';
-import Navigation from '../components/Navbar'; 
+
+import Navigation from '../components/Navbar';
+
 // Register Chart.js components
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement);
+ChartJS.register(
+  ArcElement, 
+  Tooltip, 
+  Legend, 
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  LineElement,
+  BarElement
+);
 
 // Dynamically import charts with fallback to default export
 const Pie = dynamic(
@@ -40,8 +50,12 @@ const Line = dynamic(
   () => import('react-chartjs-2').then((mod) => mod.Line || mod.default),
   { ssr: false }
 );
+const Bar = dynamic(
+  () => import('react-chartjs-2').then((mod) => mod.Bar || mod.default),
+  { ssr: false }
+);
 
-// Dynamically import QR code reader
+// Dynamically import QR scanner (using react-qr-scanner now)
 const QrScanner = dynamic(
   () => import('react-qr-scanner').then((mod) => mod.default),
   { ssr: false }
@@ -63,7 +77,7 @@ export default function AttendancePage() {
   const [submitting, setSubmitting] = useState(false);
   const [dailyGraphData, setDailyGraphData] = useState(null);
 
-  // Overall attendance counts (all-time per student)
+  // Overall attendance counts (all-time per student - Fridays only)
   const [overallAttendance, setOverallAttendance] = useState({});
 
   // Trend analysis state
@@ -72,7 +86,15 @@ export default function AttendancePage() {
   const [trendGraphData, setTrendGraphData] = useState(null);
   const [loadingTrend, setLoadingTrend] = useState(false);
 
-  // History modal state
+  // Advanced analytics state
+  const [advancedData, setAdvancedData] = useState(null);
+  const [loadingAdvanced, setLoadingAdvanced] = useState(false);
+
+  // Attendance dates history state
+  const [showDateHistoryModal, setShowDateHistoryModal] = useState(false);
+  const [attendanceDates, setAttendanceDates] = useState([]);
+
+  // History modal state (for individual student history)
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyRecords, setHistoryRecords] = useState([]);
   const [historyStudent, setHistoryStudent] = useState(null);
@@ -92,18 +114,6 @@ export default function AttendancePage() {
 
   // Low attendance threshold
   const LOW_ATTENDANCE_THRESHOLD = 50;
-
-  // --- Socket.IO for real-time updates ---
-  useEffect(() => {
-    const socket = io();
-    socket.on('attendanceUpdate', (update) => {
-      console.log('Real-time update received:', update);
-      refreshDailyData();
-    });
-    return () => {
-      socket.disconnect();
-    };
-  }, [assemblyDate]);
 
   // --- Fetch Students ---
   useEffect(() => {
@@ -161,35 +171,31 @@ export default function AttendancePage() {
     }
   };
 
-  // --- Refresh Overall Attendance (all-time) per student ---
- // --- Refresh Overall Attendance (Fridays only) per student ---
-const refreshOverallAttendance = async () => {
+  // --- Refresh Overall Attendance (Fridays only) ---
+  const refreshOverallAttendance = async () => {
     try {
       const res = await fetch('/api/attendance?limit=0');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch overall attendance');
-      
       const records = data.attendances || [];
       const overall = {};
-      
       records.forEach(rec => {
         // Only count attendance for Friday assemblies
-        const assemblyDay = new Date(rec.assemblyDate).getUTCDay();
-        if (rec.student && rec.student._id && rec.attended && assemblyDay === 5) {
+        const day = new Date(rec.assemblyDate).getUTCDay();
+        if (rec.student && rec.student._id && rec.attended && day === 5) {
           const id = rec.student._id;
           overall[id] = (overall[id] || 0) + 1;
         }
       });
-      
       setOverallAttendance(overall);
     } catch (err) {
       console.error("Error fetching overall attendance:", err);
     }
   };
-  // Load overall attendance on initial load
+
   useEffect(() => {
     refreshOverallAttendance();
-  }, []);
+  }, [success]);
 
   // --- Calculate Daily Attendance Percentage ---
   const dailyPercentage = dailyGraphData ?
@@ -237,36 +243,22 @@ const refreshOverallAttendance = async () => {
   // --- Reset Daily Attendance: Delete all records for current assemblyDate ---
   const handleResetDaily = async () => {
     if (!window.confirm("Are you sure you want to reset all attendance for this assembly date? This action cannot be undone.")) return;
-    
     setSubmitting(true);
     setError('');
     setSuccess('');
-    
     try {
-      // First, get all records for the current assembly date
       const res = await fetch(`/api/attendance?assemblyDate=${assemblyDate}&limit=0`);
       const data = await res.json();
-      
       if (!res.ok) throw new Error(data.error || 'Failed to fetch records');
-      
       const records = data.attendances || [];
-      
-      // Then delete them one by one
       await Promise.all(records.map(async (record) => {
-        const deleteRes = await fetch(`/api/attendance?id=${record._id}`, { 
-          method: 'DELETE' 
-        });
-        
+        const deleteRes = await fetch(`/api/attendance?id=${record._id}`, { method: 'DELETE' });
         if (!deleteRes.ok) {
           const deleteData = await deleteRes.json();
           throw new Error(deleteData.error || 'Failed to delete record');
         }
       }));
-      
-      // Clear the current attendance state
       setAttendance({});
-      
-      // Update success message and refresh data
       setSuccess("Daily attendance has been reset successfully.");
       refreshDailyData();
       refreshOverallAttendance();
@@ -304,18 +296,14 @@ const refreshOverallAttendance = async () => {
       setError('Please provide both start and end dates for trend analysis.');
       return;
     }
-    
     setLoadingTrend(true);
     setError('');
-    
     try {
       const res = await fetch(`/api/attendance?startDate=${trendStartDate}&endDate=${trendEndDate}&limit=0`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch trend data');
-      
       const records = data.attendances || [];
       const fridayRecords = records.filter(record => new Date(record.assemblyDate).getUTCDay() === 5);
-      
       const grouped = {};
       fridayRecords.forEach(record => {
         const dateKey = new Date(record.assemblyDate).toISOString().split('T')[0];
@@ -323,13 +311,11 @@ const refreshOverallAttendance = async () => {
         grouped[dateKey].total += 1;
         if (record.attended) grouped[dateKey].attended += 1;
       });
-      
       const sortedDates = Object.keys(grouped).sort();
       const percentages = sortedDates.map(date => {
         const { total, attended } = grouped[date];
         return total > 0 ? Math.round((attended / total) * 100) : 0;
       });
-      
       setTrendGraphData({
         labels: sortedDates.map(date => {
           const d = new Date(date);
@@ -351,24 +337,153 @@ const refreshOverallAttendance = async () => {
     }
   };
 
+  // --- Fetch Advanced Analytics Data ---
+  const fetchAdvancedAnalyticsData = async () => {
+    setLoadingAdvanced(true);
+    setError('');
+    try {
+      const res = await fetch('/api/attendance?limit=0');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch advanced analytics data');
+      const records = data.attendances || [];
+      // Consider only Friday assemblies for analytics
+      const fridayRecords = records.filter(record => new Date(record.assemblyDate).getUTCDay() === 5);
+
+      // Aggregate attendance by month
+      const monthlyAggregation = {};
+      fridayRecords.forEach(rec => {
+        const d = new Date(rec.assemblyDate);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!monthlyAggregation[key]) {
+          monthlyAggregation[key] = { total: 0, attended: 0 };
+        }
+        monthlyAggregation[key].total += 1;
+        if (rec.attended) monthlyAggregation[key].attended += 1;
+      });
+      const sortedMonths = Object.keys(monthlyAggregation).sort();
+      const monthlyLabels = sortedMonths;
+      const monthlyAttendance = sortedMonths.map(month => {
+        const { total, attended } = monthlyAggregation[month];
+        return Math.round((attended / total) * 100);
+      });
+
+      // Calculate overall average attendance percentage
+      let totalAttended = 0;
+      let totalRecords = 0;
+      fridayRecords.forEach(rec => {
+        totalAttended += rec.attended ? 1 : 0;
+        totalRecords += 1;
+      });
+      const averageAttendance = totalRecords > 0 ? Math.round((totalAttended / totalRecords) * 100) : 0;
+
+      // Calculate top 5 students by attendance count
+      const studentAttendance = {};
+      fridayRecords.forEach(rec => {
+        if (rec.student && rec.student._id) {
+          const id = rec.student._id;
+          if (!studentAttendance[id]) studentAttendance[id] = { count: 0, student: rec.student };
+          if (rec.attended) studentAttendance[id].count += 1;
+        }
+      });
+      const topStudents = Object.values(studentAttendance)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      setAdvancedData({
+        monthlyLabels,
+        monthlyAttendance,
+        averageAttendance,
+        topStudents
+      });
+    } catch (err) {
+      console.error("Error fetching advanced analytics data:", err);
+      setError(err.message);
+    } finally {
+      setLoadingAdvanced(false);
+    }
+  };
+
+  // --- Fetch Attendance Dates History ---
+  const fetchAttendanceDates = async () => {
+    setError('');
+    try {
+      const res = await fetch('/api/attendance?limit=0');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch attendance dates");
+      const records = data.attendances || [];
+      // Group records by date (YYYY-MM-DD)
+      const grouped = {};
+      records.forEach(rec => {
+        const dateKey = new Date(rec.assemblyDate).toISOString().split('T')[0];
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = [];
+        }
+        grouped[dateKey].push(rec);
+      });
+      const datesArray = Object.keys(grouped).sort().map(date => ({
+        date,
+        records: grouped[date]
+      }));
+      setAttendanceDates(datesArray);
+    } catch (err) {
+      console.error("Error fetching attendance dates:", err);
+      setError(err.message);
+    }
+  };
+
+  // --- Delete a Single Attendance Record ---
+  const handleDeleteRecord = async (recordId) => {
+    if (!window.confirm("Delete this attendance record?")) return;
+    try {
+      const res = await fetch(`/api/attendance?id=${recordId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete record");
+      // Refresh attendance dates after deletion
+      fetchAttendanceDates();
+      refreshOverallAttendance();
+    } catch (err) {
+      console.error("Error deleting record:", err);
+      setError(err.message);
+    }
+  };
+
+  // --- Delete All Attendance Records for a Given Date ---
+  const handleDeleteAllForDate = async (date) => {
+    if (!window.confirm(`Delete all attendance records for ${date}?`)) return;
+    try {
+      // Find the records for the given date
+      const dateItem = attendanceDates.find(item => item.date === date);
+      if (dateItem && dateItem.records.length > 0) {
+        await Promise.all(
+          dateItem.records.map(async (record) => {
+            const res = await fetch(`/api/attendance?id=${record._id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to delete a record");
+          })
+        );
+      }
+      // Refresh after deletion
+      fetchAttendanceDates();
+      refreshOverallAttendance();
+    } catch (err) {
+      console.error("Error deleting records for date:", err);
+      setError(err.message);
+    }
+  };
+
   // --- View History: Only show Friday records for selected student ---
   const viewHistory = async (student) => {
     setHistoryStudent(student);
     setLoadingHistory(true);
     setError('');
-    
     try {
       const res = await fetch(`/api/attendance?studentId=${student._id}&limit=0`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch history data');
-      
-      const fridayRecords = (data.attendances || []).filter(record => 
+      const fridayRecords = (data.attendances || []).filter(record =>
         new Date(record.assemblyDate).getUTCDay() === 5
       );
-      
-      // Sort records by date (newest first)
       fridayRecords.sort((a, b) => new Date(b.assemblyDate) - new Date(a.assemblyDate));
-      
       setHistoryRecords(fridayRecords);
       setShowHistoryModal(true);
     } catch (err) {
@@ -383,35 +498,27 @@ const refreshOverallAttendance = async () => {
   const handleResetHistory = async () => {
     if (!historyStudent || historyRecords.length === 0) return;
     if (!window.confirm(`Are you sure you want to erase all attendance history for ${historyStudent.first_name} ${historyStudent.last_name}? This action cannot be undone.`)) return;
-    
     setResettingHistory(true);
-    
     try {
-      let deletionErrors = 0;
-      
-      // Delete each record one by one and count errors
       await Promise.all(historyRecords.map(async (record) => {
         try {
           const res = await fetch(`/api/attendance?id=${record._id}`, { method: 'DELETE' });
           const data = await res.json();
-          if (!res.ok) {
-            deletionErrors++;
-            throw new Error(data.error || "Failed to delete a record");
-          }
+          if (!res.ok) throw new Error(data.error || "Failed to delete a record");
         } catch (err) {
-          deletionErrors++;
           console.error(`Error deleting record ${record._id}:`, err);
+          throw err;
         }
       }));
-      
-      if (deletionErrors > 0) {
-        setError(`Failed to delete ${deletionErrors} records. Please try again.`);
-      } else {
-        setSuccess("Attendance history reset successfully.");
-        setHistoryRecords([]);
-        setShowHistoryModal(false);
-        refreshOverallAttendance();
-      }
+      setSuccess("Attendance history reset successfully.");
+      const res = await fetch(`/api/attendance?studentId=${historyStudent._id}&limit=0`);
+      const data = await res.json();
+      const updatedHistory = (data.attendances || []).filter(record =>
+        new Date(record.assemblyDate).getUTCDay() === 5
+      );
+      setHistoryRecords(updatedHistory);
+      if (updatedHistory.length === 0) setShowHistoryModal(false);
+      refreshOverallAttendance();
     } catch (err) {
       console.error("Error resetting attendance history:", err);
       setError(err.message);
@@ -434,7 +541,6 @@ const refreshOverallAttendance = async () => {
       setScanning(true);
       setQrResult(result);
       setScanSuccess('');
-      
       const student = students.find(s => s._id === result);
       if (student) {
         try {
@@ -447,19 +553,12 @@ const refreshOverallAttendance = async () => {
               attended: true
             })
           });
-          
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Failed to mark QR attendance');
-          
-          // Update local state
           setAttendance(prev => ({ ...prev, [student._id]: true }));
           setScanSuccess(`✅ Attendance marked for ${student.first_name} ${student.last_name}`);
-          
-          // Refresh data after a successful scan
           refreshDailyData();
           refreshOverallAttendance();
-          
-          // Clear success message after 3 seconds
           setTimeout(() => {
             setScanSuccess('');
           }, 3000);
@@ -470,8 +569,6 @@ const refreshOverallAttendance = async () => {
       } else {
         setError('Scanned student ID not found.');
       }
-      
-      // Reset scanning after a short delay to prevent duplicate scans
       setTimeout(() => {
         setScanning(false);
       }, 2000);
@@ -529,7 +626,6 @@ const refreshOverallAttendance = async () => {
     }
   ], [attendance, overallAttendance]);
 
-  // Filter students by search text
   const filteredStudents = useMemo(() => {
     return students.filter(student =>
       `${student.first_name} ${student.last_name}`.toLowerCase().includes(searchText.toLowerCase())
@@ -608,6 +704,18 @@ const refreshOverallAttendance = async () => {
                     </Col>
                   </Row>
                   
+                  {/* New button to view attendance dates history */}
+                  <Row className="mb-3">
+                    <Col>
+                      <Button 
+                        variant="info" 
+                        onClick={() => { fetchAttendanceDates(); setShowDateHistoryModal(true); }}
+                      >
+                        <i className="fas fa-calendar-alt me-2"></i> View Attendance Dates
+                      </Button>
+                    </Col>
+                  </Row>
+                  
                   <Row className="mb-3">
                     <Col>
                       <Form.Control
@@ -653,8 +761,8 @@ const refreshOverallAttendance = async () => {
                                 backgroundColor: '#f8f9fa',
                                 fontSize: '0.9rem',
                                 fontWeight: 'bold'
-                              },
-                            },
+                              }
+                            }
                           }}
                         />
                       </div>
@@ -802,7 +910,6 @@ const refreshOverallAttendance = async () => {
                         <Card.Body>
                           <Card.Title className="text-center mb-3">Scan Student QR Code</Card.Title>
                           <p className="text-center text-muted mb-4">Hold your device in front of the QR code with student ID.</p>
-                          
                           <div className="text-center mb-3">
                             <Form.Group controlId="qrAssemblyDate" className="mb-3">
                               <Form.Label>Recording attendance for:</Form.Label>
@@ -814,7 +921,6 @@ const refreshOverallAttendance = async () => {
                               />
                             </Form.Group>
                           </div>
-                          
                           <div className="qr-reader-container mx-auto" style={{ maxWidth: '350px' }}>
                             <QrScanner
                               delay={300}
@@ -824,13 +930,11 @@ const refreshOverallAttendance = async () => {
                               facingMode="environment"
                             />
                           </div>
-                          
                           {scanSuccess && (
                             <Alert variant="success" className="mt-3 text-center">
                               {scanSuccess}
                             </Alert>
                           )}
-                          
                           {qrResult && !scanSuccess && (
                             <div className="mt-3 text-center">
                               <p>Scanning QR code...</p>
@@ -843,15 +947,99 @@ const refreshOverallAttendance = async () => {
                   </Row>
                 </div>
               </Tab>
+              
+              <Tab eventKey="advanced" title="Advanced Analytics">
+                <div className="p-3">
+                  <Button 
+                    variant="secondary" 
+                    onClick={fetchAdvancedAnalyticsData}
+                    disabled={loadingAdvanced}
+                  >
+                    {loadingAdvanced ? (
+                      <>
+                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> 
+                        <span className="ms-2">Loading Analytics...</span>
+                      </>
+                    ) : (
+                      'Load Advanced Analytics'
+                    )}
+                  </Button>
+                  {advancedData && (
+                    <>
+                      <div className="mt-4">
+                        <h3 className="h5 text-center">Monthly Attendance Trend (Fridays)</h3>
+                        <div style={{ position: 'relative', height: '400px' }}>
+                          <Bar 
+                            data={{
+                              labels: advancedData.monthlyLabels,
+                              datasets: [{
+                                label: 'Attendance %',
+                                data: advancedData.monthlyAttendance,
+                                backgroundColor: '#4e73df'
+                              }]
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              scales: {
+                                y: {
+                                  beginAtZero: true,
+                                  max: 100,
+                                  title: {
+                                    display: true,
+                                    text: 'Attendance %'
+                                  }
+                                },
+                                x: {
+                                  title: {
+                                    display: true,
+                                    text: 'Month'
+                                  }
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <h3 className="h5 text-center">Overall Average Attendance (Fridays)</h3>
+                        <div className="text-center">
+                          <h2>{advancedData.averageAttendance}%</h2>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <h3 className="h5 text-center">Top 5 Consistent Attendees (Fridays)</h3>
+                        <Table striped bordered hover responsive>
+                          <thead>
+                            <tr>
+                              <th>Student Name</th>
+                              <th>Attendance Count</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {advancedData.topStudents.map(item => (
+                              <tr key={item.student._id}>
+                                <td>{item.student.first_name} {item.student.last_name}</td>
+                                <td>{item.count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </Table>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </Tab>
             </Tabs>
           </Card.Body>
         </Card>
         
-        {/* History Modal */}
+        {/* History Modal for a single student */}
         <Modal 
           show={showHistoryModal} 
           onHide={() => setShowHistoryModal(false)} 
           size="lg"
+          centered
         >
           <Modal.Header closeButton>
             <Modal.Title>
@@ -877,8 +1065,10 @@ const refreshOverallAttendance = async () => {
                   {historyRecords.map(record => (
                     <tr key={record._id}>
                       <td>{new Date(record.assemblyDate).toLocaleDateString()}</td>
-                      <td className={record.attended ? 'text-success' : 'text-danger'}>
-                        {record.attended ? 'Attended' : 'Absent'}
+                      <td>
+                        <span className={record.attended ? 'text-success' : 'text-danger'}>
+                          {record.attended ? 'Present' : 'Absent'}
+                        </span>
                       </td>
                       <td>{new Date(record.createdAt).toLocaleString()}</td>
                     </tr>
@@ -886,9 +1076,7 @@ const refreshOverallAttendance = async () => {
                 </tbody>
               </Table>
             ) : (
-              <div className="text-center py-4">
-                <p>No attendance records found for Friday assemblies.</p>
-              </div>
+              <p className="text-center">No attendance history found for this student.</p>
             )}
           </Modal.Body>
           <Modal.Footer>
@@ -900,13 +1088,74 @@ const refreshOverallAttendance = async () => {
               {resettingHistory ? (
                 <>
                   <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> 
-                  <span className="ms-2">Processing...</span>
+                  <span className="ms-2">Resetting...</span>
                 </>
               ) : (
                 <>Reset Attendance History</>
               )}
             </Button>
             <Button variant="secondary" onClick={() => setShowHistoryModal(false)}>
+              Close
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* New Modal: Attendance Dates History */}
+        <Modal 
+          show={showDateHistoryModal} 
+          onHide={() => setShowDateHistoryModal(false)} 
+          size="lg"
+          centered
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>Attendance Dates History</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {attendanceDates.length === 0 ? (
+              <p>No attendance records found.</p>
+            ) : (
+              attendanceDates.map(item => (
+                <Card key={item.date} className="mb-3">
+                  <Card.Header>
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>{item.date}</div>
+                      <Button variant="danger" size="sm" onClick={() => handleDeleteAllForDate(item.date)}>
+                        Delete All for this Date
+                      </Button>
+                    </div>
+                  </Card.Header>
+                  <Card.Body>
+                    <Table striped bordered hover responsive>
+                      <thead>
+                        <tr>
+                          <th>Student Name</th>
+                          <th>Status</th>
+                          <th>Recorded On</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {item.records.map(record => (
+                          <tr key={record._id}>
+                            <td>{record.student ? `${record.student.first_name} ${record.student.last_name}` : 'Unknown'}</td>
+                            <td>{record.attended ? 'Attended' : 'Absent'}</td>
+                            <td>{new Date(record.createdAt).toLocaleString()}</td>
+                            <td>
+                              <Button variant="outline-danger" size="sm" onClick={() => handleDeleteRecord(record._id)}>
+                                Delete
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </Card.Body>
+                </Card>
+              ))
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowDateHistoryModal(false)}>
               Close
             </Button>
           </Modal.Footer>
