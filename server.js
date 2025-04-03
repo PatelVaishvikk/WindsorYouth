@@ -1,8 +1,11 @@
+// server.js
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import next from 'next';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import connectDb from './lib/db.js';
 
 // Load environment variables
@@ -22,7 +25,7 @@ const handle = app.getRequestHandler();
 const PORT = process.env.PORT || 3000;
 
 app.prepare().then(() => {
-  const server = express();
+  const expressApp = express();
 
   // Connect to MongoDB
   connectDb().catch(err => {
@@ -30,19 +33,33 @@ app.prepare().then(() => {
     process.exit(1);
   });
 
-  // **Body parsers for JSON and URL-encoded payloads**
-  server.use(express.json());
-  server.use(express.urlencoded({ extended: true }));
+  // Body parsers for JSON and URL-encoded payloads
+  expressApp.use(express.json());
+  expressApp.use(express.urlencoded({ extended: true }));
 
   // Serve static files
-  server.use(express.static(path.join(__dirname, 'public')));
-  server.use('/styles', express.static(path.join(__dirname, 'public/styles')));
+  expressApp.use(express.static(path.join(__dirname, 'public')));
+  expressApp.use('/styles', express.static(path.join(__dirname, 'public/styles')));
 
   // Let Next.js handle all other routes including API routes
-  server.all('*', (req, res) => handle(req, res));
+  expressApp.all('*', (req, res) => handle(req, res));
+
+  // Create HTTP server from express app
+  const httpServer = createServer(expressApp);
+
+  // Initialize Socket.IO on the HTTP server
+  const io = new SocketIOServer(httpServer);
+  global.io = io; // Make available to API routes
+
+  io.on('connection', (socket) => {
+    console.log('New client connected');
+    socket.on('disconnect', () => {
+      console.log('Client disconnected');
+    });
+  });
 
   // Start the server
-  server.listen(PORT, err => {
+  httpServer.listen(PORT, err => {
     if (err) {
       console.error('Error starting server:', err);
       process.exit(1);
