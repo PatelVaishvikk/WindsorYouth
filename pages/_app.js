@@ -3,7 +3,9 @@ import React, { useEffect } from 'react';
 import Head from 'next/head';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../styles/globals.css';
-import ChatWidget from '../components/ChatWidget'; // Import the Chat Widget
+import DarkModeToggle from '@/components/DarkModeToggle';
+import Navigation from '../components/Navbar';
+// import ChatWidget from '../components/ChatWidget'; // Import the Chat Widget
 
 const MyApp = ({ Component, pageProps }) => {
     useEffect(() => {
@@ -25,15 +27,18 @@ const MyApp = ({ Component, pageProps }) => {
                     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
                     rel="stylesheet"
                 />
-            </Head>
+                 
+        {/* Favicon */}
 
+            </Head>
+            {/* <Navigation />  */}
             <div className="app-container">
                 {/* Render the main app component */}
                 <Component {...pageProps} />
             </div>
 
             {/* Render the floating Chat Widget globally */}
-            <ChatWidget />
+            {/* <ChatWidget /> */}
 
             <style jsx global>{`
                 body {
@@ -92,6 +97,8 @@ const MyApp = ({ Component, pageProps }) => {
                     border-radius: 0 0 0.5rem 0.5rem;
                 }
             `}</style>
+             <DarkModeToggle />
+
         </>
     );
 };
