@@ -50,6 +50,18 @@ export default async function handler(req, res) {
         const normalizedEmail = data.mail_id ? data.mail_id.trim().toLowerCase() : '';
         console.log('Normalized email:', normalizedEmail);
         data.mail_id = normalizedEmail;
+        
+        // Process year arrays to ensure they're numbers
+        const yearFields = ['box_cricket_years', 'atmiya_cricket_years', 'atmiya_youth_years', 'yuva_mahotsav_years'];
+        yearFields.forEach(field => {
+          if (data[field]) {
+            // Convert to array of numbers and filter out any invalid values
+            data[field] = Array.isArray(data[field]) 
+              ? data[field].map(year => Number(year)).filter(year => !isNaN(year)) 
+              : [];
+          }
+        });
+        
         // Only perform duplicate check if email is non-empty
         if (normalizedEmail !== '') {
           const existingStudent = await Student.findOne({ mail_id: normalizedEmail });
@@ -86,18 +98,49 @@ export default async function handler(req, res) {
         if (!student) {
           return res.status(404).json({ error: 'Student not found' });
         }
-        const fields = ['first_name','last_name','mail_id','phone','address','date_of_birth','gender','education','emergency_contact','notes','interests'];
+        
+        // Updated list of fields
+        const fields = [
+          'first_name',
+          'last_name',
+          'mail_id',
+          'phone',
+          'address',
+          'date_of_birth',
+          'education',
+          'emergency_contact',
+          'notes',
+          'box_cricket',
+          'box_cricket_years',
+          'atmiya_cricket_tournament',
+          'atmiya_cricket_years',
+          'atmiya_youth_shibir',
+          'atmiya_youth_years',
+          'yuva_mahotsav',
+          'yuva_mahotsav_years',
+          'harimay'
+        ];
+        
+        // Year fields that need special handling
+        const yearFields = ['box_cricket_years', 'atmiya_cricket_years', 'atmiya_youth_years', 'yuva_mahotsav_years'];
+        
         for (const field of fields) {
           if (req.body.hasOwnProperty(field)) {
             if (field === 'mail_id') {
               student.mail_id = req.body.mail_id ? req.body.mail_id.trim().toLowerCase() : '';
             } else if (field === 'date_of_birth') {
               student.date_of_birth = req.body.date_of_birth ? new Date(req.body.date_of_birth) : null;
+            } else if (yearFields.includes(field)) {
+              // Handle year arrays - convert to array of numbers and filter out invalid values
+              student[field] = Array.isArray(req.body[field]) 
+                ? req.body[field].map(year => Number(year)).filter(year => !isNaN(year))
+                : [];
             } else {
               student[field] = req.body[field];
             }
           }
         }
+        
         await student.save();
         const updatedStudent = student.toObject();
         updatedStudent._id = updatedStudent._id.toString();
