@@ -13,8 +13,6 @@ const StudentSchema = new mongoose.Schema({
   },
   mail_id: { 
     type: String,
-    // Remove required if you want email to be optional.
-    // required: [true, 'Email is required'],
     unique: true,
     sparse: true, // Only index documents with a non-empty email.
     trim: true,
@@ -38,15 +36,46 @@ const StudentSchema = new mongoose.Schema({
     type: Date, 
     default: null 
   },
-  gender: { 
-    type: String, 
-    enum: ['male', 'female', 'other', ''], 
-    default: '' 
-  },
   education: { 
     type: String, 
-    enum: ['high_school', 'bachelors', 'masters', 'phd', 'other', ''], 
+    enum: ['masters', 'pg_diploma', ''], 
     default: '' 
+  },
+  box_cricket: { 
+    type: Boolean, 
+    default: false 
+  },
+  box_cricket_years: { 
+    type: [Number], // Changed from String to array of Numbers
+    default: [] 
+  },
+  atmiya_cricket_tournament: { 
+    type: Boolean, 
+    default: false 
+  },
+  atmiya_cricket_years: { 
+    type: [Number], // Changed from String to array of Numbers
+    default: [] 
+  },
+  atmiya_youth_shibir: { 
+    type: Boolean, 
+    default: false 
+  },
+  atmiya_youth_years: { 
+    type: [Number], // Changed from String to array of Numbers
+    default: [] 
+  },
+  yuva_mahotsav: { 
+    type: Boolean, 
+    default: false 
+  },
+  yuva_mahotsav_years: { 
+    type: [Number], // Changed from String to array of Numbers
+    default: [] 
+  },
+  harimay: { 
+    type: Boolean, 
+    default: false 
   },
   emergency_contact: { 
     type: String, 
@@ -57,10 +86,6 @@ const StudentSchema = new mongoose.Schema({
     type: String, 
     trim: true, 
     default: '' 
-  },
-  interests: { 
-    type: [String], 
-    default: [] 
   },
   created_at: { 
     type: Date, 
