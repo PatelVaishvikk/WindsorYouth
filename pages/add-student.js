@@ -1,16 +1,9 @@
 import { useState } from 'react';
-import { Form, Button, Toast, Alert } from 'react-bootstrap';
-import { useRouter } from 'next/router';
+import { Form, Button, Container, Card, Alert, Row, Col } from 'react-bootstrap';
 import Head from 'next/head';
-import Navbar from '../components/Navbar';
+import Link from 'next/link';
 
 export default function AddStudent() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVariant, setToastVariant] = useState('success');
-  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -18,83 +11,71 @@ export default function AddStudent() {
     phone: '',
     address: '',
     date_of_birth: '',
-    gender: '',
     education: '',
     emergency_contact: '',
-    notes: ''
+    notes: '',
+    box_cricket: false,
+    box_cricket_years: [],
+    atmiya_cricket_tournament: false,
+    atmiya_cricket_years: [],
+    atmiya_youth_shibir: false,
+    atmiya_youth_years: [],
+    yuva_mahotsav: false,
+    yuva_mahotsav_years: [],
+    harimay: false
   });
+  
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  // Year range for year selection (e.g., last 10 years)
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 10 }, (_, i) => currentYear - i);
 
-  // Utility to display toast messages
-  const showToastMessage = (message, variant = 'success') => {
-    setToastMessage(message);
-    setToastVariant(variant);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    
+    if (type === 'checkbox') {
+      setFormData({ ...formData, [name]: checked });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
-  // Prevent form submission when Enter is pressed on non-textarea inputs
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
-      e.preventDefault();
+  const handleYearChange = (event, fieldName) => {
+    const { options } = event.target;
+    const selectedYears = [];
+    
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].selected) {
+        selectedYears.push(Number(options[i].value));
+      }
     }
+    
+    setFormData({ ...formData, [fieldName]: selectedYears });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    e.stopPropagation();
-    // Prevent multiple submissions
-    if (loading) return;
-    console.log('Form submission triggered');
     setLoading(true);
     setError('');
-    setShowToast(false);
-
-    // Clean up and normalize form data
-    const cleanedFormData = {
-      ...formData,
-      first_name: formData.first_name.trim(),
-      last_name: formData.last_name.trim(),
-      mail_id: formData.mail_id.trim().toLowerCase(),
-      phone: formData.phone.trim(),
-      address: formData.address?.trim() || '',
-      date_of_birth: formData.date_of_birth || null,
-      gender: formData.gender || '',
-      education: formData.education || '',
-      emergency_contact: formData.emergency_contact?.trim() || '',
-      notes: formData.notes?.trim() || ''
-    };
-
-    // Validate required fields (here we require first name, last name, and phone)
-    if (!cleanedFormData.first_name || !cleanedFormData.last_name || !cleanedFormData.phone) {
-      const errorMsg = 'Please fill in all required fields (First name, Last name, Phone)';
-      setError(errorMsg);
-      showToastMessage(errorMsg, 'danger');
-      setLoading(false);
-      return;
-    }
-
+    setSuccess('');
+    
     try {
-      // Send POST request to create a new student
-      const response = await fetch('/api/students', {
+      const res = await fetch('/api/students', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(cleanedFormData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       });
-      const textResponse = await response.text();
-      let data = {};
-      if (textResponse) {
-        try {
-          data = JSON.parse(textResponse);
-        } catch {
-          throw new Error('Failed to parse server response');
-        }
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit student details.');
       }
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add student');
-      }
-      console.log('Student added successfully:', data);
-      showToastMessage('Student added successfully!');
-      // Clear the form
+      
+      setSuccess('Student added successfully!');
       setFormData({
         first_name: '',
         last_name: '',
@@ -102,23 +83,24 @@ export default function AddStudent() {
         phone: '',
         address: '',
         date_of_birth: '',
-        gender: '',
         education: '',
         emergency_contact: '',
-        notes: ''
+        notes: '',
+        box_cricket: false,
+        box_cricket_years: [],
+        atmiya_cricket_tournament: false,
+        atmiya_cricket_years: [],
+        atmiya_youth_shibir: false,
+        atmiya_youth_years: [],
+        yuva_mahotsav: false,
+        yuva_mahotsav_years: [],
+        harimay: false
       });
-      // Redirect to Students table after a short delay
-      setTimeout(() => {
-        router.push('/students-table');
-      }, 2000);
     } catch (err) {
-      console.error('Error in form submission:', err);
-      const errorMessage = err.message || 'An error occurred while adding the student';
-      setError(errorMessage);
-      showToastMessage(errorMessage, 'danger');
-    } finally {
-      setLoading(false);
+      setError(err.message);
     }
+    
+    setLoading(false);
   };
 
   return (
@@ -126,203 +108,293 @@ export default function AddStudent() {
       <Head>
         <title>Add Student - HSAPSS Windsor</title>
       </Head>
+      <Container className="mt-4">
+        <Card>
+          <Card.Header className="d-flex justify-content-between align-items-center">
+            <span>Add New Student</span>
+            <Link href="/login" passHref>
+              <Button variant="outline-primary" size="sm">Login</Button>
+            </Link>
+          </Card.Header>
+          <Card.Body>
+            {error && <Alert variant="danger">{error}</Alert>}
+            {success && <Alert variant="success">{success}</Alert>}
+            <Form onSubmit={handleSubmit}>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3" controlId="first_name">
+                    <Form.Label>First Name</Form.Label>
+                    <Form.Control
+                      name="first_name"
+                      type="text"
+                      value={formData.first_name}
+                      onChange={handleChange}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3" controlId="last_name">
+                    <Form.Label>Last Name</Form.Label>
+                    <Form.Control
+                      name="last_name"
+                      type="text"
+                      value={formData.last_name}
+                      onChange={handleChange}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
 
-      <Navbar />
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3" controlId="mail_id">
+                    <Form.Label>Email (Optional)</Form.Label>
+                    <Form.Control
+                      name="mail_id"
+                      type="email"
+                      value={formData.mail_id}
+                      onChange={handleChange}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3" controlId="phone">
+                    <Form.Label>Phone</Form.Label>
+                    <Form.Control
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
 
-      <div className="container-fluid py-4">
-        <div className="row justify-content-center">
-          <div className="col-lg-8">
-            <div className="card">
-              <div className="card-header">
-                <h4 className="mb-0">Add New Student</h4>
-              </div>
-              <div className="card-body">
-                {error && (
-                  <Alert variant="danger" className="mb-4" onClose={() => setError('')} dismissible>
-                    {error}
-                  </Alert>
-                )}
-                <Form onSubmit={handleSubmit} onKeyDown={handleKeyDown} noValidate>
-                  <div className="row">
-                    <div className="col-md-6">
-                      <Form.Group className="mb-3">
-                        <Form.Label>
-                          First Name <span className="text-danger">*</span>
-                        </Form.Label>
-                        <Form.Control
-                          type="text"
-                          value={formData.first_name}
-                          onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                          required
-                          placeholder="Enter first name"
-                        />
-                      </Form.Group>
-                    </div>
-                    <div className="col-md-6">
-                      <Form.Group className="mb-3">
-                        <Form.Label>
-                          Last Name <span className="text-danger">*</span>
-                        </Form.Label>
-                        <Form.Control
-                          type="text"
-                          value={formData.last_name}
-                          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                          required
-                          placeholder="Enter last name"
-                        />
-                      </Form.Group>
-                    </div>
-                  </div>
-
-                  <div className="row">
-                    <div className="col-md-6">
-                      <Form.Group className="mb-3">
-                        <Form.Label>Email (Optional)</Form.Label>
-                        <Form.Control
-                          type="email"
-                          value={formData.mail_id}
-                          onChange={(e) => setFormData({ ...formData, mail_id: e.target.value })}
-                          placeholder="Enter email address"
-                        />
-                      </Form.Group>
-                    </div>
-                    <div className="col-md-6">
-                      <Form.Group className="mb-3">
-                        <Form.Label>
-                          Phone <span className="text-danger">*</span>
-                        </Form.Label>
-                        <Form.Control
-                          type="tel"
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          required
-                          placeholder="Enter phone number"
-                        />
-                      </Form.Group>
-                    </div>
-                  </div>
-
-                  <Form.Group className="mb-3">
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3" controlId="address">
                     <Form.Label>Address</Form.Label>
                     <Form.Control
-                      type="text"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="Enter address"
-                    />
-                  </Form.Group>
-
-                  <div className="row">
-                    <div className="col-md-6">
-                      <Form.Group className="mb-3">
-                        <Form.Label>Date of Birth</Form.Label>
-                        <Form.Control
-                          type="date"
-                          value={formData.date_of_birth}
-                          onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                        />
-                      </Form.Group>
-                    </div>
-                    <div className="col-md-6">
-                      <Form.Group className="mb-3">
-                        <Form.Label>Gender</Form.Label>
-                        <Form.Select
-                          value={formData.gender}
-                          onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                        >
-                          <option value="">Select Gender</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="other">Other</option>
-                        </Form.Select>
-                      </Form.Group>
-                    </div>
-                  </div>
-
-                  <div className="row">
-                    <div className="col-md-6">
-                      <Form.Group className="mb-3">
-                        <Form.Label>Education</Form.Label>
-                        <Form.Select
-                          value={formData.education}
-                          onChange={(e) => setFormData({ ...formData, education: e.target.value })}
-                        >
-                          <option value="">Select Education</option>
-                          <option value="high_school">High School</option>
-                          <option value="bachelors">Bachelors</option>
-                          <option value="masters">Masters</option>
-                          <option value="phd">PhD</option>
-                          <option value="other">Other</option>
-                        </Form.Select>
-                      </Form.Group>
-                    </div>
-                    <div className="col-md-6">
-                      <Form.Group className="mb-3">
-                        <Form.Label>Emergency Contact</Form.Label>
-                        <Form.Control
-                          type="tel"
-                          value={formData.emergency_contact}
-                          onChange={(e) => setFormData({ ...formData, emergency_contact: e.target.value })}
-                          placeholder="Enter emergency contact"
-                        />
-                      </Form.Group>
-                    </div>
-                  </div>
-
-                  <Form.Group className="mb-3">
-                    <Form.Label>Notes</Form.Label>
-                    <Form.Control
+                      name="address"
                       as="textarea"
-                      rows={3}
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      placeholder="Enter any additional notes"
+                      rows={2}
+                      value={formData.address}
+                      onChange={handleChange}
                     />
                   </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3" controlId="date_of_birth">
+                    <Form.Label>Date of Birth</Form.Label>
+                    <Form.Control
+                      name="date_of_birth"
+                      type="date"
+                      value={formData.date_of_birth}
+                      onChange={handleChange}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
 
-                  <div className="d-flex justify-content-end gap-2">
-                    <Button variant="secondary" onClick={() => router.push('/students-table')}>
-                      Cancel
-                    </Button>
-                    <Button variant="primary" type="submit" disabled={loading}>
-                      {loading ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                          Adding Student...
-                        </>
-                      ) : (
-                        'Add Student'
-                      )}
-                    </Button>
-                  </div>
-                </Form>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3" controlId="education">
+                    <Form.Label>Education</Form.Label>
+                    <Form.Select
+                      name="education"
+                      value={formData.education}
+                      onChange={handleChange}
+                    >
+                      <option value="">Select Education</option>
+                      <option value="masters">Masters</option>
+                      <option value="pg_diploma">PG Diploma</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3" controlId="emergency_contact">
+                    <Form.Label>Emergency Contact</Form.Label>
+                    <Form.Control
+                      name="emergency_contact"
+                      type="text"
+                      value={formData.emergency_contact}
+                      onChange={handleChange}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
 
-      {/* Toast Notification */}
-      <div className="position-fixed bottom-0 end-0 p-3" style={{ zIndex: 1051 }}>
-        <Toast show={showToast} onClose={() => setShowToast(false)} bg={toastVariant === 'success' ? 'success' : 'danger'} delay={3000} autohide>
-          <Toast.Header closeButton className={toastVariant === 'success' ? 'bg-success text-white' : 'bg-danger text-white'}>
-            <strong className="me-auto">{toastVariant === 'success' ? 'Success' : 'Error'}</strong>
-          </Toast.Header>
-          <Toast.Body className={`fw-semibold ${toastVariant === 'success' ? 'text-success' : 'text-danger'}`}>
-            {toastMessage}
-          </Toast.Body>
-        </Toast>
-      </div>
-
-      <style jsx>{`
-        .card { border: none; border-radius: 0.5rem; box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15); }
-        .card-header { background-color: #f8f9fc; border-bottom: 1px solid #e3e6f0; padding: 1.25rem; }
-        .form-control:focus, .form-select:focus {
-          border-color: #4e73df;
-          box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
-        }
-        .form-control::placeholder { color: #a8aeb8; }
-      `}</style>
+              {/* Event Participation Section */}
+              <h4 className="mt-4 mb-3">Event Participation</h4>
+              
+              {/* Box Cricket */}
+              <Row className="mb-3">
+                <Col md={4}>
+                  <Form.Group controlId="box_cricket">
+                    <Form.Check
+                      type="checkbox"
+                      name="box_cricket"
+                      label="Box Cricket"
+                      checked={formData.box_cricket}
+                      onChange={handleChange}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={8}>
+                  <Form.Group controlId="box_cricket_years">
+                    <Form.Label>Participation Years</Form.Label>
+                    <Form.Select
+                      name="box_cricket_years"
+                      multiple
+                      disabled={!formData.box_cricket}
+                      onChange={(e) => handleYearChange(e, 'box_cricket_years')}
+                      value={formData.box_cricket_years}
+                    >
+                      {years.map(year => (
+                        <option key={`box-${year}`} value={year}>{year}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      Hold Ctrl/Cmd to select multiple years
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+              </Row>
+              
+              {/* Atmiya Cricket Tournament */}
+              <Row className="mb-3">
+                <Col md={4}>
+                  <Form.Group controlId="atmiya_cricket_tournament">
+                    <Form.Check
+                      type="checkbox"
+                      name="atmiya_cricket_tournament"
+                      label="Atmiya Cricket Tournament"
+                      checked={formData.atmiya_cricket_tournament}
+                      onChange={handleChange}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={8}>
+                  <Form.Group controlId="atmiya_cricket_years">
+                    <Form.Label>Participation Years</Form.Label>
+                    <Form.Select
+                      name="atmiya_cricket_years"
+                      multiple
+                      disabled={!formData.atmiya_cricket_tournament}
+                      onChange={(e) => handleYearChange(e, 'atmiya_cricket_years')}
+                      value={formData.atmiya_cricket_years}
+                    >
+                      {years.map(year => (
+                        <option key={`atmiya-cricket-${year}`} value={year}>{year}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      Hold Ctrl/Cmd to select multiple years
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+              </Row>
+              
+              {/* Atmiya Youth Shibir */}
+              <Row className="mb-3">
+                <Col md={4}>
+                  <Form.Group controlId="atmiya_youth_shibir">
+                    <Form.Check
+                      type="checkbox"
+                      name="atmiya_youth_shibir"
+                      label="Atmiya Youth Shibir"
+                      checked={formData.atmiya_youth_shibir}
+                      onChange={handleChange}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={8}>
+                  <Form.Group controlId="atmiya_youth_years">
+                    <Form.Label>Participation Years</Form.Label>
+                    <Form.Select
+                      name="atmiya_youth_years"
+                      multiple
+                      disabled={!formData.atmiya_youth_shibir}
+                      onChange={(e) => handleYearChange(e, 'atmiya_youth_years')}
+                      value={formData.atmiya_youth_years}
+                    >
+                      {years.map(year => (
+                        <option key={`atmiya-youth-${year}`} value={year}>{year}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      Hold Ctrl/Cmd to select multiple years
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+              </Row>
+              
+              {/* Yuva Mahotsav */}
+              <Row className="mb-3">
+                <Col md={4}>
+                  <Form.Group controlId="yuva_mahotsav">
+                    <Form.Check
+                      type="checkbox"
+                      name="yuva_mahotsav"
+                      label="Yuva Mahotsav"
+                      checked={formData.yuva_mahotsav}
+                      onChange={handleChange}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={8}>
+                  <Form.Group controlId="yuva_mahotsav_years">
+                    <Form.Label>Participation Years</Form.Label>
+                    <Form.Select
+                      name="yuva_mahotsav_years"
+                      multiple
+                      disabled={!formData.yuva_mahotsav}
+                      onChange={(e) => handleYearChange(e, 'yuva_mahotsav_years')}
+                      value={formData.yuva_mahotsav_years}
+                    >
+                      {years.map(year => (
+                        <option key={`yuva-${year}`} value={year}>{year}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      Hold Ctrl/Cmd to select multiple years
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+              </Row>
+              
+              {/* Harimay */}
+              <Form.Group className="mb-3" controlId="harimay">
+                <Form.Check
+                  type="checkbox"
+                  name="harimay"
+                  label="Harimay"
+                  checked={formData.harimay}
+                  onChange={handleChange}
+                />
+              </Form.Group>
+              
+              <Form.Group className="mb-3" controlId="notes">
+                <Form.Label>Notes</Form.Label>
+                <Form.Control
+                  name="notes"
+                  as="textarea"
+                  rows={3}
+                  value={formData.notes}
+                  onChange={handleChange}
+                />
+              </Form.Group>
+              
+              <Button variant="primary" type="submit" disabled={loading}>
+                {loading ? 'Adding Student...' : 'Add Student'}
+              </Button>
+            </Form>
+          </Card.Body>
+        </Card>
+      </Container>
     </>
   );
 }
